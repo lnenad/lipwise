@@ -10,7 +10,6 @@ use std::time::{Duration, Instant};
 
 use anyhow::{anyhow, bail, Context, Result};
 use serde::Serialize;
-use serde_json::Value;
 use tauri::{AppHandle, Emitter};
 
 use crate::download;
@@ -351,10 +350,30 @@ fn find_file(dir: &Path, name: &str, depth: usize) -> Option<PathBuf> {
     subdirs.into_iter().find_map(|d| find_file(&d, name, depth - 1))
 }
 
-/// The release asset for this OS/arch/backend, e.g. `-bin-win-vulkan-x64.zip`.
-fn asset_suffix(backend: Backend) -> Result<&'static str> {
+/// The llama.cpp build Lipwise installs. It's pinned like the models, so a new
+/// llama.cpp release is a code change here rather than something every install
+/// picks up unreviewed. To move to a newer one, pick a `bNNNN` release on
+/// github.com/ggml-org/llama.cpp/releases and copy each asset's size and SHA-256.
+const LLAMA_TAG: &str = "b11446";
+
+/// Each build we use from that release: asset suffix, size in bytes, SHA-256.
+const LLAMA_ASSETS: [(&str, u64, &str); 10] = [
+    ("-bin-win-vulkan-x64.zip", 33_337_862, "a27c90495e4816380a1882eb850080d03806ceaf9e979460743411822672ff76"),
+    ("-bin-win-cpu-x64.zip", 19_398_456, "03c4fb7fe3c7612979e8dcc3953a4e58a281159b4fa7481e7f6eb2ebdc1075ce"),
+    ("-bin-win-vulkan-arm64.zip", 25_882_001, "8962e4867c434c200c01ac63d98e5ed539bc842531198984fa070d869336022e"),
+    ("-bin-win-cpu-arm64.zip", 12_227_954, "9a0643da7f15e42b76640da080287c83f60ad1e24bb6f3523c2ad13824382288"),
+    ("-bin-macos-arm64.tar.gz", 11_970_641, "9f2a616ffd11a7f9a2682d34d1bbb44f3c24634420b5da3d3a8b591fa2488088"),
+    ("-bin-macos-x64.tar.gz", 11_487_036, "a8a459ec8abf768ef130fe72926d69c2937e8a6222f32813fb640bb3bf86e6ef"),
+    ("-bin-ubuntu-vulkan-x64.tar.gz", 31_638_289, "f8ce39bee242a478dcd4d48aa6e45fbec2be5bfd8aa09a56c7514d58dc0ca719"),
+    ("-bin-ubuntu-x64.tar.gz", 17_692_543, "c5755973e290ca0ebac2ca2bd1ea70bf2858f38dade027acecc4237bc6cfc7da"),
+    ("-bin-ubuntu-vulkan-arm64.tar.gz", 24_846_311, "4698389847c6818c7a17b009e22c1dbc621e54498f4554ab25e1be1bca6210c8"),
+    ("-bin-ubuntu-arm64.tar.gz", 13_682_913, "d07bc13f447b1c74c75818b1a48344151ec84fadd6acacd523e3496254c18af7"),
+];
+
+/// The pinned build for this OS/arch/backend: file name, size and SHA-256.
+fn llama_asset(backend: Backend) -> Result<(String, u64, &'static str)> {
     let gpu = backend == Backend::Vulkan;
-    Ok(match (std::env::consts::OS, std::env::consts::ARCH, gpu) {
+    let suffix = match (std::env::consts::OS, std::env::consts::ARCH, gpu) {
         ("windows", "x86_64", true) => "-bin-win-vulkan-x64.zip",
         ("windows", "x86_64", false) => "-bin-win-cpu-x64.zip",
         ("windows", "aarch64", true) => "-bin-win-vulkan-arm64.zip",
@@ -366,7 +385,12 @@ fn asset_suffix(backend: Backend) -> Result<&'static str> {
         ("linux", "aarch64", true) => "-bin-ubuntu-vulkan-arm64.tar.gz",
         ("linux", "aarch64", false) => "-bin-ubuntu-arm64.tar.gz",
         (os, arch, _) => bail!("No llama.cpp build available for {os}/{arch}"),
-    })
+    };
+    let (_, size, sha256) = LLAMA_ASSETS
+        .iter()
+        .find(|(s, ..)| *s == suffix)
+        .ok_or_else(|| anyhow!("No pinned llama.cpp build for {suffix}"))?;
+    Ok((format!("llama-{LLAMA_TAG}{suffix}"), *size, sha256))
 }
 
 async fn install_llama(
@@ -375,46 +399,20 @@ async fn install_llama(
     cancel: &AtomicBool,
     progress: &impl Fn(&str, &str, u64, u64),
 ) -> Result<PathBuf> {
-    let suffix = asset_suffix(backend)?;
-    progress("llama", "Finding the latest llama.cpp build…", 0, 0);
-    let releases: Value = download::client()?
-        .get("https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=10")
-        .header("Accept", "application/vnd.github+json")
-        .send()
-        .await?
-        .error_for_status()
-        .context("Couldn't reach GitHub to download llama.cpp")?
-        .json()
-        .await?;
-    // Builds are published as `bNNNN` releases; pick the newest one carrying our asset.
-    let (tag, asset) = releases
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter(|r| r["tag_name"].as_str().is_some_and(|t| t.starts_with('b')))
-        .find_map(|r| {
-            let asset = r["assets"].as_array()?.iter().find(|a| {
-                a["name"].as_str().is_some_and(|n| n.starts_with("llama-") && n.ends_with(suffix))
-            })?;
-            Some((r["tag_name"].as_str()?.to_string(), asset.clone()))
-        })
-        .ok_or_else(|| anyhow!("No llama.cpp release found for this platform"))?;
-
-    let name = asset["name"].as_str().unwrap_or_default();
-    let size = asset["size"].as_u64().unwrap_or_default();
-    let sha = asset["digest"].as_str().and_then(|d| d.strip_prefix("sha256:"));
-    let url = asset["browser_download_url"].as_str().unwrap_or_default().to_string();
+    let (name, size, sha) = llama_asset(backend)?;
+    let tag = LLAMA_TAG;
+    let url = format!("https://github.com/ggml-org/llama.cpp/releases/download/{tag}/{name}");
 
     let root = llama_dir(data_dir);
-    let archive = root.join(name);
-    download::fetch_verified(&[url], &archive, size, sha, cancel, |stage, done, total| match stage {
+    let archive = root.join(&name);
+    download::fetch_verified(&[url], &archive, size, Some(sha), cancel, |stage, done, total| match stage {
         download::Stage::Downloading => progress("llama", &format!("Downloading llama.cpp {tag}…"), done, total),
         download::Stage::Verifying => progress("llama", "Verifying llama.cpp…", done, total),
     })
     .await?;
 
     progress("llama", "Unpacking llama.cpp…", 0, 0);
-    let dest = root.join(&tag);
+    let dest = root.join(tag);
     let _ = std::fs::remove_dir_all(&dest);
     std::fs::create_dir_all(&dest)?;
     let (archive_c, dest_c) = (archive.clone(), dest.clone());
@@ -424,7 +422,7 @@ async fn install_llama(
     // Drop older builds we installed before.
     if let Ok(entries) = std::fs::read_dir(&root) {
         for entry in entries.flatten() {
-            if entry.path().is_dir() && entry.file_name() != tag.as_str() {
+            if entry.path().is_dir() && entry.file_name() != tag {
                 let _ = std::fs::remove_dir_all(entry.path());
             }
         }
@@ -848,7 +846,7 @@ mod tests {
     #[test]
     fn every_platform_we_ship_has_a_build() {
         for backend in [Backend::Cpu, Backend::Vulkan, Backend::Metal] {
-            assert!(asset_suffix(backend).is_ok());
+            assert!(llama_asset(backend).is_ok(), "{backend:?}");
         }
     }
 

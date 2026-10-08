@@ -68,6 +68,16 @@ impl Default for Providers {
 }
 
 impl Providers {
+    /// Each provider with the name its API key is stored under.
+    fn named_mut(&mut self) -> [(&'static str, &mut ProviderConfig); 4] {
+        [
+            ("anthropic", &mut self.anthropic),
+            ("openai", &mut self.openai),
+            ("ollama", &mut self.ollama),
+            ("custom", &mut self.custom),
+        ]
+    }
+
     pub fn get(&self, provider: Provider) -> &ProviderConfig {
         match provider {
             // The local server has no user-editable config; its address is only
@@ -228,22 +238,143 @@ pub fn env_key(provider: Provider) -> Option<String> {
     std::env::var(var).ok().filter(|v| !v.trim().is_empty())
 }
 
+/// Reads settings.json and fills in the API keys from the OS credential store.
+/// Keys still in the file (saved by an older version, or because the store wasn't
+/// available) are moved into the store.
 pub fn load(path: &PathBuf) -> Settings {
-    match std::fs::read_to_string(path) {
+    let mut settings = match std::fs::read_to_string(path) {
         Ok(raw) => serde_json::from_str(&raw).unwrap_or_else(|e| {
             log::warn!("settings file unreadable ({e}); using defaults");
             Settings::default()
         }),
         Err(_) => Settings::default(),
+    };
+    let mut keys_in_file = false;
+    for (name, cfg) in settings.providers.named_mut() {
+        if !cfg.api_key.is_empty() {
+            keys_in_file = true;
+            continue;
+        }
+        match keys::get(name) {
+            Ok(key) => cfg.api_key = key,
+            Err(e) => log::warn!("couldn't read the {name} API key from the credential store: {e}"),
+        }
     }
+    if keys_in_file && path.is_file() {
+        if let Err(e) = save(path, &settings) {
+            log::warn!("couldn't move API keys out of the settings file: {e}");
+        }
+    }
+    settings
 }
 
+/// Writes settings.json, with the API keys going to the OS credential store instead.
+/// A key the store won't take stays in the file so it isn't lost.
 pub fn save(path: &PathBuf, settings: &Settings) -> anyhow::Result<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
+    let mut file = settings.clone();
+    for (name, cfg) in file.providers.named_mut() {
+        match keys::set(name, &cfg.api_key) {
+            Ok(()) => cfg.api_key.clear(),
+            Err(e) if cfg.api_key.is_empty() => {
+                log::warn!("couldn't remove the {name} API key from the credential store: {e}")
+            }
+            Err(e) => log::warn!("couldn't store the {name} API key in the credential store, keeping it in the settings file: {e}"),
+        }
+    }
     let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, serde_json::to_vec_pretty(settings)?)?;
+    std::fs::write(&tmp, serde_json::to_vec_pretty(&file)?)?;
     std::fs::rename(&tmp, path)?;
     Ok(())
+}
+
+/// API keys in the OS credential store: the Keychain on macOS, Credential Manager on
+/// Windows, the Secret Service (GNOME Keyring, KWallet) on Linux.
+mod keys {
+    use std::collections::HashMap;
+    use std::sync::Mutex;
+
+    #[cfg(not(test))]
+    const SERVICE: &str = "app.lipwise.desktop";
+    // Tests never touch the user's real keys.
+    #[cfg(test)]
+    const SERVICE: &str = "app.lipwise.desktop.test";
+
+    /// What the store holds for each provider, as far as this process knows, so
+    /// saving settings only touches the store when a key actually changed.
+    static KNOWN: Mutex<Option<HashMap<&'static str, String>>> = Mutex::new(None);
+
+    fn remember(name: &'static str, key: &str) {
+        KNOWN.lock().unwrap().get_or_insert_with(HashMap::new).insert(name, key.to_string());
+    }
+
+    fn known(name: &str) -> Option<String> {
+        KNOWN.lock().unwrap().as_ref()?.get(name).cloned()
+    }
+
+    fn entry(name: &str) -> keyring::Result<keyring::Entry> {
+        keyring::Entry::new(SERVICE, name)
+    }
+
+    /// The stored key, or an empty string if there is none.
+    pub fn get(name: &'static str) -> keyring::Result<String> {
+        let key = match entry(name)?.get_password() {
+            Ok(key) => key,
+            Err(keyring::Error::NoEntry) => String::new(),
+            Err(e) => return Err(e),
+        };
+        remember(name, &key);
+        Ok(key)
+    }
+
+    /// Stores `key`, or removes the stored one when `key` is empty.
+    pub fn set(name: &'static str, key: &str) -> keyring::Result<()> {
+        if known(name).as_deref() == Some(key) {
+            return Ok(());
+        }
+        let entry = entry(name)?;
+        if key.is_empty() {
+            match entry.delete_credential() {
+                Ok(()) | Err(keyring::Error::NoEntry) => {}
+                Err(e) => return Err(e),
+            }
+        } else {
+            entry.set_password(key)?;
+        }
+        remember(name, key);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Uses the real credential store, which CI runners may not have.
+    #[test]
+    #[ignore]
+    fn api_keys_live_in_the_credential_store() {
+        let dir = std::env::temp_dir().join(format!("lipwise-keys-{}", std::process::id()));
+        let path = dir.join("settings.json");
+        let mut settings = Settings::default();
+        settings.providers.custom.api_key = "test-key-123".into();
+        save(&path, &settings).unwrap();
+        let raw = std::fs::read_to_string(&path).unwrap();
+        assert!(!raw.contains("test-key-123"), "key written to the file");
+        assert_eq!(load(&path).providers.custom.api_key, "test-key-123");
+
+        // A key left in the file by an older version moves to the store on load.
+        std::fs::write(&path, r#"{"providers":{"openai":{"api_key":"old-key-456"}}}"#).unwrap();
+        assert_eq!(load(&path).providers.openai.api_key, "old-key-456");
+        assert!(!std::fs::read_to_string(&path).unwrap().contains("old-key-456"), "key left in the file");
+        assert_eq!(keys::get("openai").unwrap(), "old-key-456");
+
+        settings.providers.custom.api_key.clear();
+        save(&path, &settings).unwrap();
+        assert_eq!(keys::get("custom").unwrap(), "");
+        assert_eq!(keys::get("openai").unwrap(), "");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 }

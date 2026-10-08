@@ -128,7 +128,7 @@ Then:
 
 - **Audio never leaves your computer.** Transcription always runs locally.
 - **The AI sees only the transcript**, and only when you've chosen a cloud provider. With local AI, your own server, or AI turned off, nothing is sent anywhere.
-- **No account, no telemetry.** History and settings are stored in your user profile. API keys live in the app's settings file, or come from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`.
+- **No account, no telemetry.** History and settings are stored in your user profile. API keys are kept in the system credential store (Keychain on macOS, Credential Manager on Windows, the Secret Service keyring on Linux), or come from `ANTHROPIC_API_KEY` / `OPENAI_API_KEY`.
 - **Network access is limited to** downloading models and llama.cpp, the AI provider you configure, and checking GitHub for updates (which you can turn off).
 
 ## Local AI

@@ -56,7 +56,7 @@ docs/assets/     README screenshots and demo
 
 1. **Detects the hardware**: RAM, CPU threads, and each GPU's dedicated memory (the Windows display-adapter registry, `nvidia-smi` and amdgpu sysfs on Linux, unified memory on Apple Silicon), plus free disk space.
 2. **Picks a backend and model.** Metal on Apple Silicon, Vulkan on any GPU with 2 GB+ of its own memory (NVIDIA, AMD, Intel), otherwise CPU. It recommends the largest model that fits comfortably in GPU or unified memory, and the smaller one on CPU-only machines, stepping down if the disk is short on space.
-3. **Gets llama.cpp**, reusing a recent `llama-server` already on your PATH (or Homebrew's). Otherwise it downloads the newest official build for your OS and backend from GitHub and checks the release's SHA-256 digest.
+3. **Gets llama.cpp**, reusing a recent `llama-server` already on your PATH (or Homebrew's). Otherwise it downloads the official build for your OS and backend from GitHub, pinned to one release (`LLAMA_TAG` in `local_ai.rs`) and checked against the SHA-256 hard-coded next to it.
 4. **Downloads the model** from Hugging Face at a pinned revision and verifies its SHA-256. Downloads resume if interrupted.
 5. **Starts `llama-server`** on a random localhost port, with no console window, thinking turned off (`--reasoning off`), and GPU layers fitted automatically. It waits for `/health` and then switches Lipwise to it.
 

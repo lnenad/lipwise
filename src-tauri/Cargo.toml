@@ -38,6 +38,8 @@ tokio = { version = "1", features = ["time", "fs", "io-util", "sync"] }
 sysinfo = { version = "0.38", default-features = false, features = ["system", "disk"] }
 sha2 = "0.10"
 hex = "0.4"
+# API keys in the OS credential store (Keychain, Credential Manager, Secret Service).
+keyring = "4"
 transcribe-cpp = { version = "0.3", default-features = false }
 
 [target.'cfg(target_os = "macos")'.dependencies]

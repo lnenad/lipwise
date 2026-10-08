@@ -1,9 +1,15 @@
 import { useState, type ComponentType } from "react";
 import { useApp } from "../App";
-import { api, type Provider, type ProviderConfig, type RemoteProvider } from "../api";
+import { api, isMac, isWindows, type Provider, type ProviderConfig, type RemoteProvider } from "../api";
 import LocalSetup from "./LocalSetup";
 import { Group, Notice, PaneHeader, Row, Spinner, Tag, Toggle, type Tint } from "../components";
 import { Asterisk, Check, Cloud, Cube, Desktop, Server, Sparkles } from "../icons";
+
+const keyStore = isMac
+  ? "Kept in your Keychain."
+  : isWindows
+    ? "Kept in Windows Credential Manager."
+    : "Kept in your system keyring.";
 
 const PROVIDERS: {
   id: Provider;
@@ -190,7 +196,7 @@ export default function AI() {
               title={provider.needsKey ? "API Key" : "API Key (optional)"}
               hint={
                 <>
-                  Stored on this computer.
+                  {keyStore}
                   {provider.keyUrl && (
                     <>
                       {" "}

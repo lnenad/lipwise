@@ -65,7 +65,8 @@
     ],
     "macOS": {
       "infoPlist": "Info.plist",
-      "entitlements": "Entitlements.plist"
+      "entitlements": "Entitlements.plist",
+      "minimumSystemVersion": "11.0"
     },
     "createUpdaterArtifacts": true
   },

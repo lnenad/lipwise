@@ -1,0 +1,520 @@
+{
+  "_about": "Prompt eval for the AI editor. Checks are case-insensitive substring tests. Run: see live_eval in src/llm.rs.",
+  "dictation": [
+    {
+      "id": "tail-professional",
+      "category": "style command",
+      "said": "um so I wanted to let you know the meeting is on Tuesday no wait Thursday at 10 new paragraph can you bring the slides question mark make it sound professional",
+      "contains": [
+        "Thursday",
+        "slides"
+      ],
+      "absent": [
+        "make it sound",
+        "sound professional",
+        "Tuesday",
+        "um "
+      ]
+    },
+    {
+      "id": "tail-polite",
+      "category": "style command",
+      "said": "hey sarah can't make lunch today something came up make it more polite",
+      "contains": [
+        "Sarah",
+        "lunch"
+      ],
+      "absent": [
+        "make it more polite",
+        "more polite"
+      ]
+    },
+    {
+      "id": "tail-friendlier",
+      "category": "style command",
+      "said": "the build is broken again and nobody knows why make this friendlier",
+      "contains": [
+        "build"
+      ],
+      "absent": [
+        "make this friendlier",
+        "friendlier"
+      ]
+    },
+    {
+      "id": "tail-tweet",
+      "category": "style command",
+      "said": "we shipped the new dashboard yesterday and customers love it turn that into a short tweet",
+      "contains": [
+        "dashboard"
+      ],
+      "absent": [
+        "turn that",
+        "into a short tweet"
+      ]
+    },
+    {
+      "id": "tail-shorter",
+      "category": "style command",
+      "said": "so basically what I'm trying to say is that I think we should probably postpone the launch because the testing really isn't done yet make it shorter",
+      "contains": [
+        "launch"
+      ],
+      "absent": [
+        "make it shorter",
+        "basically",
+        "what I'm trying to say"
+      ],
+      "max_words": 16
+    },
+    {
+      "id": "tail-formally",
+      "category": "style command",
+      "said": "thanks for the update I'll look at it tomorrow rewrite that more formally",
+      "contains": [
+        "tomorrow"
+      ],
+      "absent": [
+        "rewrite",
+        "formally"
+      ]
+    },
+    {
+      "id": "tail-spanish",
+      "category": "style command",
+      "said": "the quarterly numbers look good and the team did great work translate this into spanish",
+      "contains_any": [
+        "trimestr",
+        "equipo"
+      ],
+      "absent": [
+        "translate",
+        "the quarterly",
+        "spanish"
+      ]
+    },
+    {
+      "id": "tail-casual",
+      "category": "style command",
+      "said": "the meeting has been moved to friday afternoon make it sound more casual",
+      "contains": [
+        "Friday"
+      ],
+      "absent": [
+        "make it sound",
+        "casual"
+      ]
+    },
+    {
+      "id": "keep-make-it-professional",
+      "category": "looks like a command but is content",
+      "said": "we need to make it sound professional for the client meeting on monday",
+      "contains": [
+        "make it sound professional",
+        "Monday"
+      ]
+    },
+    {
+      "id": "keep-scratch-that-idea",
+      "category": "looks like a command but is content",
+      "said": "tell him to scratch that idea and start over with the old design",
+      "contains": [
+        "scratch that idea",
+        "old design"
+      ]
+    },
+    {
+      "id": "keep-request-to-reader",
+      "category": "looks like a command but is content",
+      "said": "can you make this more formal before you send it to legal question mark",
+      "contains": [
+        "make this more formal",
+        "legal",
+        "?"
+      ]
+    },
+    {
+      "id": "keep-make-it-shorter",
+      "category": "looks like a command but is content",
+      "said": "my editor told me to make it shorter so I cut two pages",
+      "contains": [
+        "make it shorter",
+        "two pages"
+      ]
+    },
+    {
+      "id": "keep-sign-off-verb",
+      "category": "looks like a command but is content",
+      "said": "please sign off on the budget by friday",
+      "contains": [
+        "sign off on the budget",
+        "Friday"
+      ],
+      "absent": [
+        "regards"
+      ]
+    },
+    {
+      "id": "fix-no-wait",
+      "category": "correction",
+      "said": "let's meet on tuesday no wait wednesday at three",
+      "contains": [
+        "Wednesday"
+      ],
+      "absent": [
+        "Tuesday",
+        "no wait"
+      ]
+    },
+    {
+      "id": "fix-actually",
+      "category": "correction",
+      "said": "send it to john actually send it to maria",
+      "contains": [
+        "Maria"
+      ],
+      "absent": [
+        "John",
+        "actually"
+      ]
+    },
+    {
+      "id": "fix-scratch-number",
+      "category": "correction",
+      "said": "the price is 40 dollars scratch that 45 dollars",
+      "contains_any": [
+        "45",
+        "forty-five"
+      ],
+      "absent": [
+        "40",
+        "scratch"
+      ]
+    },
+    {
+      "id": "fix-delete-that",
+      "category": "correction",
+      "said": "I'll be there at 5 delete that I'll be there at 6",
+      "contains_any": [
+        "6",
+        "six"
+      ],
+      "absent": [
+        "delete",
+        " 5",
+        "five"
+      ]
+    },
+    {
+      "id": "fix-cancel-all",
+      "category": "correction",
+      "said": "um so I was going to say scratch that never mind all of that",
+      "max_words": 0
+    },
+    {
+      "id": "fmt-paragraph",
+      "category": "formatting",
+      "said": "the launch went well new paragraph next steps are below",
+      "contains": [
+        "\n\n",
+        "launch",
+        "Next steps"
+      ],
+      "absent": [
+        "new paragraph"
+      ]
+    },
+    {
+      "id": "fmt-list",
+      "category": "formatting",
+      "said": "shopping list colon milk eggs and bread make it a list",
+      "contains": [
+        "- ",
+        "milk",
+        "eggs",
+        "bread"
+      ],
+      "absent": [
+        "make it a list"
+      ]
+    },
+    {
+      "id": "fmt-new-line",
+      "category": "formatting",
+      "said": "first point new line second point new line third point",
+      "contains": [
+        "\n",
+        "second point"
+      ],
+      "absent": [
+        "new line"
+      ]
+    },
+    {
+      "id": "fmt-punctuation",
+      "category": "formatting",
+      "said": "dear team comma the office is closed on friday period",
+      "contains": [
+        "Dear team,",
+        "Friday."
+      ],
+      "absent": [
+        "comma",
+        "period"
+      ]
+    },
+    {
+      "id": "fmt-numbered",
+      "category": "formatting",
+      "said": "agenda colon numbered list budget hiring roadmap",
+      "contains": [
+        "1.",
+        "2.",
+        "3.",
+        "budget",
+        "roadmap"
+      ],
+      "absent": [
+        "numbered list"
+      ]
+    },
+    {
+      "id": "noanswer-question",
+      "category": "don't answer the content",
+      "said": "what time does the store close question mark",
+      "contains": [
+        "what time does the store close?"
+      ],
+      "max_words": 8
+    },
+    {
+      "id": "noanswer-request",
+      "category": "don't answer the content",
+      "said": "can you send me the quarterly report by friday question mark thanks",
+      "contains": [
+        "quarterly report",
+        "?",
+        "thanks"
+      ]
+    },
+    {
+      "id": "noanswer-poem",
+      "category": "don't answer the content",
+      "said": "write me a poem about the sea",
+      "contains": [
+        "poem about the sea"
+      ],
+      "max_words": 9
+    },
+    {
+      "id": "clean-fillers",
+      "category": "cleanup",
+      "said": "um so uh basically we need like three more days you know to finish",
+      "contains": [
+        "three more days",
+        "finish"
+      ],
+      "absent": [
+        "um ",
+        " uh",
+        "you know"
+      ]
+    },
+    {
+      "id": "clean-keep-thanks",
+      "category": "cleanup",
+      "said": "hey can you call me back when you get this thanks",
+      "contains": [
+        "call me back",
+        "thanks"
+      ]
+    },
+    {
+      "id": "custom-sign-off",
+      "category": "custom command",
+      "said": "hi team quick update the release is on track sign off",
+      "contains": [
+        "release is on track",
+        "regards"
+      ],
+      "absent": [
+        "sign off"
+      ]
+    },
+    {
+      "id": "custom-no-trigger",
+      "category": "custom command",
+      "said": "hi team the release is on track",
+      "contains": [
+        "release is on track"
+      ],
+      "absent": [
+        "regards"
+      ]
+    },
+    {
+      "id": "p-tail-professional",
+      "category": "style command (punctuated)",
+      "said": "Um, so I wanted to let you know the meeting is on Tuesday. No wait, Thursday at 10. New paragraph. Can you bring the slides? Make it sound professional.",
+      "contains": [
+        "Thursday",
+        "slides"
+      ],
+      "absent": [
+        "make it sound",
+        "sound professional",
+        "Tuesday",
+        "um,"
+      ]
+    },
+    {
+      "id": "p-tail-shorter",
+      "category": "style command (punctuated)",
+      "said": "So basically what I'm trying to say is that I think we should probably postpone the launch, because the testing really isn't done yet. Make it shorter.",
+      "contains": [
+        "launch"
+      ],
+      "absent": [
+        "make it shorter",
+        "basically"
+      ],
+      "max_words": 16
+    },
+    {
+      "id": "p-tail-email",
+      "category": "style command (punctuated)",
+      "said": "Hi Tom, the invoice is attached. Let me know if anything is missing. Turn this into a proper email.",
+      "contains": [
+        "Tom",
+        "invoice"
+      ],
+      "absent": [
+        "turn this",
+        "proper email"
+      ]
+    },
+    {
+      "id": "p-tail-german",
+      "category": "style command (punctuated)",
+      "said": "I will be a few minutes late, sorry. Translate that into German.",
+      "contains_any": [
+        "Minuten",
+        "spät",
+        "später"
+      ],
+      "absent": [
+        "translate",
+        "German",
+        "sorry"
+      ]
+    },
+    {
+      "id": "p-keep-professional",
+      "category": "looks like a command but is content",
+      "said": "We need to make it sound more professional before the investors see it.",
+      "contains": [
+        "make it sound more professional",
+        "investors"
+      ]
+    },
+    {
+      "id": "p-keep-question",
+      "category": "looks like a command but is content",
+      "said": "Can you make this shorter for the newsletter?",
+      "contains": [
+        "make this shorter",
+        "newsletter",
+        "?"
+      ]
+    },
+    {
+      "id": "p-keep-turn-into",
+      "category": "looks like a command but is content",
+      "said": "Our goal is to turn this into a real business by next year.",
+      "contains": [
+        "turn this into a real business"
+      ]
+    },
+    {
+      "id": "p-fix-cancel",
+      "category": "correction",
+      "said": "Okay, so the plan is, actually, scratch that. Forget all of it.",
+      "max_words": 0
+    }
+  ],
+  "command": [
+    {
+      "id": "cmd-translate",
+      "category": "command mode",
+      "selection": "See you tomorrow at the office.",
+      "instruction": "translate this to German",
+      "contains": [
+        "morgen"
+      ],
+      "absent": [
+        "see you"
+      ]
+    },
+    {
+      "id": "cmd-reply",
+      "category": "command mode",
+      "selection": "Can you join the call at 4?",
+      "instruction": "write a two sentence reply saying yes",
+      "contains": [
+        "yes"
+      ],
+      "max_words": 40
+    },
+    {
+      "id": "cmd-professional",
+      "category": "command mode",
+      "selection": "hey guys, server's down again, fixing it, eta 20 min",
+      "instruction": "make this more professional",
+      "contains": [
+        "20"
+      ],
+      "absent": [
+        "guys"
+      ]
+    },
+    {
+      "id": "cmd-new-text",
+      "category": "command mode",
+      "selection": "",
+      "instruction": "write a one line out of office message",
+      "max_words": 30,
+      "absent": [
+        "here is",
+        "here's"
+      ]
+    },
+    {
+      "id": "cmd-question",
+      "category": "command mode",
+      "selection": "The deadline is Friday.",
+      "instruction": "what day is the deadline",
+      "contains": [
+        "The deadline is Friday."
+      ]
+    },
+    {
+      "id": "cmd-spelling",
+      "category": "command mode",
+      "selection": "teh quick brown fox jumpd over the lazzy dog",
+      "instruction": "fix the spelling",
+      "contains": [
+        "the quick brown fox",
+        "over the lazy dog"
+      ],
+      "contains_any": [
+        "jumped",
+        "jumps"
+      ],
+      "absent": [
+        "teh",
+        "jumpd",
+        "lazzy"
+      ]
+    }
+  ]
+}

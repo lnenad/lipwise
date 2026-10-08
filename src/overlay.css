@@ -1,0 +1,97 @@
+/* The floating status capsule, in the spirit of the Dynamic Island. */
+
+@property --angle {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
+html, body.overlay-body {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+  cursor: default;
+}
+
+#root { height: 100vh; display: grid; place-items: center; }
+
+.island {
+  position: relative;
+  width: 300px;
+  height: 50px;
+  border-radius: 25px;
+  background: #0a0a0b;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 0 18px 0 10px;
+  box-sizing: border-box;
+  box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.12), 0 3px 8px rgba(0, 0, 0, 0.28);
+  animation: grow 0.45s cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+@keyframes grow { from { transform: scale(0.82); opacity: 0; } }
+
+/* Apple Intelligence–style glow while the AI is editing */
+.island.thinking::before {
+  content: "";
+  position: absolute;
+  inset: -1.5px;
+  border-radius: inherit;
+  padding: 1.5px;
+  background: conic-gradient(from var(--angle), #ff6aa2, #ffb36b, #a35cf0, #3d8bff, #5ce1e6, #ff6aa2);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: rotate 2.4s linear infinite;
+}
+@keyframes rotate { to { --angle: 360deg; } }
+
+.lead { width: 30px; height: 30px; display: grid; place-items: center; flex-shrink: 0; animation: pop 0.35s cubic-bezier(0.34, 1.5, 0.64, 1); }
+@keyframes pop { from { transform: scale(0.4); opacity: 0; } }
+
+.rec { position: relative; width: 11px; height: 11px; border-radius: 50%; background: #ff453a; }
+.rec::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: #ff453a; animation: halo 1.4s ease-out infinite; }
+@keyframes halo { from { transform: scale(1); opacity: 0.6; } to { transform: scale(2.6); opacity: 0; } }
+
+.glyph { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; font-size: 14px; font-weight: 700; }
+.glyph.ok { background: #30d158; }
+.glyph.ok svg { stroke-width: 3; }
+.glyph.err { background: #ff453a; }
+
+.sparkle { width: 20px; height: 20px; color: #d4a6ff; animation: twinkle 1.6s ease-in-out infinite; }
+@keyframes twinkle { 50% { transform: scale(0.86) rotate(-8deg); color: #8ab8ff; } }
+
+.spinner { position: relative; width: 18px; height: 18px; color: rgba(255, 255, 255, 0.9); }
+.spinner i { position: absolute; left: 44%; top: 0; width: 12%; height: 30%; border-radius: 999px; background: currentColor; transform-origin: 50% 166.67%; animation: spoke 0.8s linear infinite; }
+@keyframes spoke { from { opacity: 1; } to { opacity: 0.2; } }
+
+.text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; animation: fade 0.3s ease; }
+@keyframes fade { from { opacity: 0; transform: translateY(3px); } }
+.label { font-size: 10.5px; font-weight: 500; color: rgba(235, 235, 245, 0.55); letter-spacing: 0.01em; }
+.message { font-size: 13px; font-weight: 600; letter-spacing: -0.005em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.error .message { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; font-size: 11.5px; font-weight: 500; line-height: 1.25; }
+.error .label { display: none; }
+
+.thinking .message {
+  background: linear-gradient(90deg, #fff 0%, #fff 35%, #c9a8ff 50%, #fff 65%, #fff 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 1.8s linear infinite;
+}
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -150% 0; } }
+
+.wave { display: flex; align-items: center; gap: 2.5px; height: 24px; flex-shrink: 0; }
+.wave i { width: 3px; border-radius: 2px; background: #fff; transition: height 0.09s ease-out; }
+.mode-command .wave i { background: linear-gradient(#d4a6ff, #8ab8ff); }
+.mode-plain .wave i { background: rgba(255, 255, 255, 0.7); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; }
+}

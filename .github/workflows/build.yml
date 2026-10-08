@@ -42,6 +42,8 @@ jobs:
       - uses: swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
+          # The C++ libraries' build output depends on this, but rust-cache doesn't hash it.
+          key: macos-${{ env.MACOSX_DEPLOYMENT_TARGET }}
 
       - run: npm ci
 

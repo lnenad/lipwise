@@ -79,6 +79,10 @@ pub fn list_microphones() -> Vec<String> {
         .unwrap_or_default()
 }
 
+pub fn has_microphone() -> bool {
+    cpal::default_host().default_input_device().is_some()
+}
+
 /// True when the clip has no meaningful signal (mic muted, accidental tap).
 pub fn is_silent(samples: &[f32]) -> bool {
     samples.iter().fold(0.0f32, |peak, s| peak.max(s.abs())) < 0.015

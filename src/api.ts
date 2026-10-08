@@ -87,6 +87,19 @@ export interface AppStatus {
   env_keys: { anthropic: boolean; openai: boolean };
   /** A downloaded update waiting for a restart. */
   update: UpdateInfo | null;
+  permissions: Permissions;
+}
+
+/**
+ * What the OS lets Lipwise do. "ask": the system prompt hasn't been shown yet.
+ * "denied": only the user can turn it on, in system settings. "limited": typing works
+ * in some apps only (Linux on Wayland). "missing": no microphone connected.
+ */
+export type Access = "granted" | "ask" | "denied" | "limited" | "missing";
+
+export interface Permissions {
+  microphone: Access;
+  typing: Access;
 }
 
 export interface UpdateInfo {
@@ -143,6 +156,8 @@ export const api = {
   getStatus: () => invoke<AppStatus>("get_status"),
   checkForUpdate: () => invoke<UpdateInfo | null>("check_for_update"),
   installUpdate: () => invoke<void>("install_update"),
+  requestMicrophoneAccess: () => invoke<void>("request_microphone_access"),
+  requestTypingAccess: () => invoke<void>("request_typing_access"),
   listModels: () => invoke<ModelInfo[]>("list_models"),
   downloadModel: (id: string) => invoke<void>("download_model", { id }),
   cancelDownload: (id: string) => invoke<void>("cancel_download", { id }),
@@ -165,7 +180,8 @@ export const api = {
   clearHistory: () => invoke<void>("clear_history"),
 };
 
-const isMac = navigator.userAgent.includes("Mac");
+export const isMac = navigator.userAgent.includes("Mac");
+export const isWindows = navigator.userAgent.includes("Windows");
 
 /** "ctrl+shift+Space" → ["Ctrl", "Shift", "Space"] */
 export function shortcutKeys(shortcut: string): string[] {

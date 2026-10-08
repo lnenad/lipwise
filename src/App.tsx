@@ -58,6 +58,10 @@ export function readiness(settings: Settings, status: AppStatus | null): Readine
   const phase = status?.status.phase ?? "idle";
   if (!settings.selected_model) return { tone: "warn", text: "Needs a speech model" };
   if (status?.shortcut_error) return { tone: "error", text: "Shortcut unavailable" };
+  const access = status?.permissions;
+  if (access?.microphone === "missing") return { tone: "warn", text: "No microphone found" };
+  if (access && access.microphone !== "granted") return { tone: "warn", text: "Allow microphone" };
+  if (access?.typing === "denied") return { tone: "warn", text: "Allow typing" };
   if (phase === "recording") return { tone: "rec", text: "Listening…" };
   if (phase === "transcribing") return { tone: "busy", text: "Transcribing…" };
   if (phase === "thinking") return { tone: "busy", text: "Editing…" };
@@ -101,6 +105,7 @@ export default function App() {
       listen("model-loading", refreshStatus),
       listen("local-ai-state", refreshStatus),
       listen("update-ready", refreshStatus),
+      listen("permissions-changed", refreshStatus),
       // Changes made elsewhere (tray menu, first download) — don't clobber unsaved edits.
       listen("settings-changed", () => {
         if (pendingSave.current === null) reload();
@@ -110,6 +115,20 @@ export default function App() {
     ];
     return () => unlisten.forEach((p) => p.then((f) => f()));
   }, [reload, refreshStatus]);
+
+  // Access is granted in system settings, which doesn't tell the app, so look again
+  // while something's missing: every couple of seconds, and on coming back to the window.
+  const needsAccess =
+    !!status && (status.permissions.microphone !== "granted" || status.permissions.typing === "denied");
+  useEffect(() => {
+    if (!needsAccess) return;
+    const timer = window.setInterval(refreshStatus, 2000);
+    window.addEventListener("focus", refreshStatus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshStatus);
+    };
+  }, [needsAccess, refreshStatus]);
 
   const theme = settings?.theme;
   useEffect(() => {

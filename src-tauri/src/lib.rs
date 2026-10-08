@@ -6,6 +6,7 @@ mod llm;
 mod local_ai;
 mod models;
 mod overlay;
+mod permissions;
 mod pipeline;
 mod settings;
 mod transcribe;
@@ -361,6 +362,16 @@ fn install_update(app: AppHandle) -> CmdResult<()> {
 }
 
 #[tauri::command]
+fn request_microphone_access(app: AppHandle) {
+    permissions::request_microphone(&app);
+}
+
+#[tauri::command]
+fn request_typing_access(app: AppHandle) {
+    permissions::request_typing(&app);
+}
+
+#[tauri::command]
 fn get_status(app: AppHandle, state: State<AppState>) -> serde_json::Value {
     serde_json::json!({
         "status": *state.status.lock().unwrap(),
@@ -369,6 +380,7 @@ fn get_status(app: AppHandle, state: State<AppState>) -> serde_json::Value {
         "shortcut_error": *state.shortcut_error.lock().unwrap(),
         "local_ai": local_ai::state(),
         "update": app.state::<updater::Updates>().ready(),
+        "permissions": permissions::check(),
         "env_keys": {
             "anthropic": settings::env_key(Provider::Anthropic).is_some(),
             "openai": settings::env_key(Provider::OpenAI).is_some(),
@@ -633,6 +645,8 @@ pub fn run() {
             local_ai_remove,
             check_for_update,
             install_update,
+            request_microphone_access,
+            request_typing_access,
         ])
         .build(tauri::generate_context!())
         .expect("error while building Lipwise")

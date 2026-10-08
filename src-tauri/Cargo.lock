@@ -2377,6 +2377,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "arboard",
+ "block2",
  "chrono",
  "cpal",
  "enigo",
@@ -2384,6 +2385,8 @@ dependencies = [
  "hex",
  "hound",
  "log",
+ "objc2",
+ "objc2-foundation",
  "reqwest 0.12.28",
  "rubato",
  "serde",

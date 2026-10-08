@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { readiness, useApp } from "../App";
-import { api, type HistoryEntry, type ModelInfo } from "../api";
+import { api, isMac, isWindows, type Access, type HistoryEntry, type ModelInfo } from "../api";
 import { Group, Keys, Notice, Row } from "../components";
-import { Mic, Sparkles, Text, Wand, Waveform } from "../icons";
+import { Keyboard, Mic, Sparkles, Text, Wand, Waveform } from "../icons";
 
 const EXAMPLES: { said: string; typed: string; context?: string }[] = [
   {
@@ -24,6 +24,47 @@ const EXAMPLES: { said: string; typed: string; context?: string }[] = [
     typed: "The selection, replaced with its German translation.",
   },
 ];
+
+/** Where the user turns access back on after declining the system prompt. */
+const MIC_SETTINGS = isMac
+  ? "Turn on Lipwise in System Settings › Privacy & Security › Microphone."
+  : "Turn on microphone access, including “Let desktop apps access your microphone”.";
+
+function microphoneRow(access: Access) {
+  switch (access) {
+    case "granted":
+      return { hint: undefined, detail: "Allowed", action: null };
+    case "missing":
+      return { hint: "Connect a microphone or headset.", detail: "None found", action: null };
+    case "ask":
+      return { hint: "Lipwise listens only while you use a shortcut.", detail: null, action: "Allow" };
+    default:
+      return { hint: MIC_SETTINGS, detail: null, action: "Open Settings" };
+  }
+}
+
+function typingRow(access: Access) {
+  switch (access) {
+    case "denied":
+      return {
+        hint: "Lipwise pastes what you say with ⌘V, which needs Accessibility access. Turn on Lipwise in the list that opens.",
+        detail: null,
+        action: "Allow",
+      };
+    case "limited":
+      return {
+        hint: "On Wayland, Lipwise can type only into apps that run through XWayland. Anything else is kept in History.",
+        detail: "Some apps",
+        action: null,
+      };
+    default:
+      return {
+        hint: isWindows ? "Works everywhere except apps running as administrator." : undefined,
+        detail: "Allowed",
+        action: null,
+      };
+  }
+}
 
 const PROVIDER_NAMES: Record<string, string> = {
   local: "On this computer",
@@ -53,7 +94,39 @@ export default function Home() {
   const aiReady = !!status?.ai_ready;
   const modelName = models.find((m) => m.id === settings.selected_model)?.name;
 
-  const headline = !hasModel ? "Let's get you set up" : ready.tone === "ok" ? "Ready when you are" : ready.text;
+
+  const access = status?.permissions;
+  const mic = microphoneRow(access?.microphone ?? "granted");
+  const typing = typingRow(access?.typing ?? "granted");
+  // After the speech model, the next thing standing between the user and dictation.
+  const nextStep = !access
+    ? null
+    : access.microphone === "missing"
+      ? { title: "No microphone found", text: "Connect a microphone or headset to start dictating.", action: null }
+      : access.microphone !== "granted"
+        ? {
+            title: "Allow the microphone",
+            text:
+              access.microphone === "ask"
+                ? "Lipwise needs your permission to use the microphone. It listens only while you use a shortcut."
+                : "Microphone access is turned off for Lipwise in your system settings.",
+            action: { label: access.microphone === "ask" ? "Allow Microphone Access" : "Open Microphone Settings", run: api.requestMicrophoneAccess },
+          }
+        : access.typing === "denied"
+          ? {
+              title: "Allow typing into apps",
+              text: "To type what you say into other apps, Lipwise needs Accessibility access.",
+              action: { label: "Allow Typing", run: api.requestTypingAccess },
+            }
+          : null;
+
+  const headline = !hasModel
+    ? "Let's get you set up"
+    : nextStep
+      ? nextStep.title
+      : ready.tone === "ok"
+        ? "Ready when you are"
+        : ready.text;
 
   return (
     <>
@@ -63,7 +136,16 @@ export default function Home() {
           <img src="/app-icon.svg" alt="" />
         </div>
         <h1>{headline}</h1>
-        {hasModel ? (
+        {hasModel && nextStep ? (
+          <>
+            <p>{nextStep.text}</p>
+            {nextStep.action && (
+              <button className="btn btn-primary btn-lg" onClick={nextStep.action.run}>
+                {nextStep.action.label}
+              </button>
+            )}
+          </>
+        ) : hasModel ? (
           <p>
             {settings.push_to_talk ? "Hold" : "Press"} <Keys shortcut={settings.dictate_shortcut} /> in any app and start
             talking.
@@ -114,6 +196,24 @@ export default function Home() {
       </Group>
 
       <Group title="Setup">
+        <Row icon={Waveform} tint="orange" title="Microphone" hint={mic.hint}>
+          {mic.action ? (
+            <button className="btn btn-sm" onClick={api.requestMicrophoneAccess}>
+              {mic.action}
+            </button>
+          ) : (
+            <span className={`detail ${access?.microphone === "missing" ? "detail-warn" : ""}`}>{mic.detail}</span>
+          )}
+        </Row>
+        <Row icon={Keyboard} tint="indigo" title="Typing into Apps" hint={typing.hint}>
+          {typing.action ? (
+            <button className="btn btn-sm" onClick={api.requestTypingAccess}>
+              {typing.action}
+            </button>
+          ) : (
+            <span className={`detail ${access?.typing === "limited" ? "detail-warn" : ""}`}>{typing.detail}</span>
+          )}
+        </Row>
         <Row icon={Mic} tint="red" title="Speech Model" onClick={() => go("models")}>
           <span className={`detail ${hasModel ? "" : "detail-warn"}`}>{hasModel ? (modelName ?? "Installed") : "Not installed"}</span>
           <span className="chevron" />

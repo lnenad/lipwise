@@ -225,6 +225,10 @@ fn start(app: &AppHandle, mode: Mode, metering: &Arc<AtomicBool>) -> bool {
         crate::show_main(app, Some("ai"));
         return false;
     }
+    if let Some(problem) = missing_access(app) {
+        fail(app, mode, problem);
+        return false;
+    }
     if let Err(e) = state.recorder.start(settings.microphone.clone()) {
         fail(app, mode, format!("Microphone error: {e}"));
         return false;
@@ -271,6 +275,30 @@ fn start(app: &AppHandle, mode: Mode, metering: &Arc<AtomicBool>) -> bool {
     true
 }
 
+/// Checked before recording: without microphone access the recording is silent (or,
+/// on macOS, interrupted by the system prompt), and without typing access the result
+/// can't be pasted. Asks for whatever's missing and says what to do.
+fn missing_access(app: &AppHandle) -> Option<&'static str> {
+    use crate::permissions::{self, Access};
+    match permissions::microphone() {
+        Access::Ask => {
+            permissions::request_microphone(app);
+            return Some("Allow microphone access, then try again");
+        }
+        Access::Denied => {
+            crate::show_main(app, Some("home"));
+            return Some("Microphone access is off for Lipwise");
+        }
+        _ => {}
+    }
+    if permissions::typing() == Access::Denied {
+        permissions::request_typing(app);
+        crate::show_main(app, Some("home"));
+        return Some("Allow Lipwise to type into other apps");
+    }
+    None
+}
+
 fn stop_recording(app: &AppHandle, metering: &AtomicBool) -> Vec<f32> {
     metering.store(false, Ordering::Relaxed);
     let controller = app.state::<Controller>();
@@ -286,7 +314,7 @@ fn finish(app: &AppHandle, mode: Mode, phase: &Arc<Mutex<Phase>>, metering: &Ato
 
     // Grab the selection now, while the user's app still has focus.
     let selection = if mode == Mode::Command {
-        input::copy_selection().unwrap_or_else(|e| {
+        input::copy_selection(app).unwrap_or_else(|e| {
             log::warn!("couldn't read selection: {e}");
             String::new()
         })
@@ -360,7 +388,8 @@ async fn process(app: &AppHandle, mode: Mode, samples: Vec<f32>, selection: Stri
 
     let text = output.clone();
     let restore = settings.restore_clipboard;
-    let pasted = tauri::async_runtime::spawn_blocking(move || input::paste(&text, restore))
+    let paste_app = app.clone();
+    let pasted = tauri::async_runtime::spawn_blocking(move || input::paste(&paste_app, &text, restore))
         .await
         .map_err(anyhow::Error::from)
         .and_then(|r| r);

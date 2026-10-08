@@ -45,6 +45,7 @@ src-tauri/src/
   audio.rs       mic capture and resampling
   input.rs       paste and read selection via clipboard + synthetic keys
   overlay.rs     floating status pill
+  permissions.rs microphone and typing (Accessibility) access per platform
   updater.rs     background update checks against GitHub Releases
   settings.rs, history.rs, lib.rs (commands, tray, startup)
 src/             React UI (pages/, overlay.tsx)

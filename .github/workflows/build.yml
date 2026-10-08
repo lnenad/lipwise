@@ -18,6 +18,10 @@ jobs:
       matrix:
         platform: [windows-latest, macos-latest, ubuntu-22.04]
     runs-on: ${{ matrix.platform }}
+    env:
+      # Match release builds (tauri.conf.json minimumSystemVersion), which link differently
+      # from builds targeting the runner's own macOS version. Ignored on other platforms.
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
     steps:
       - uses: actions/checkout@v4
 
@@ -46,4 +50,9 @@ jobs:
 
       - name: Unit tests
         run: cargo test --lib
+        working-directory: src-tauri
+
+      # Links the full app, which the library tests alone don't.
+      - name: Build the app
+        run: cargo build
         working-directory: src-tauri

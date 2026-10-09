@@ -18,6 +18,7 @@
 
 <p align="center">
   <a href="https://github.com/lnenad/lipwise/releases/latest"><b>Download</b></a> ·
+  <a href="https://getlipwise.com/">Website</a> ·
   <a href="#what-it-does">What it does</a> ·
   <a href="#features">Features</a> ·
   <a href="#screenshots">Screenshots</a> ·

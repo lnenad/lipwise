@@ -1,6 +1,6 @@
 [package]
 name = "lipwise"
-version = "0.1.0"
+version = "0.1.1"
 description = "Lipwise — voice dictation with an AI editor in the loop"
 edition = "2021"
 license = "MIT"
@@ -48,6 +48,12 @@ transcribe-cpp = { version = "0.3", default-features = false, features = ["metal
 objc2 = "0.6"
 objc2-foundation = "0.3"
 block2 = "0.6"
+# Saving and restoring every pasteboard type around a paste (input.rs).
+objc2-app-kit = { version = "0.3", default-features = false, features = ["std", "NSPasteboard", "NSPasteboardItem"] }
+
+[target.'cfg(windows)'.dependencies]
+# Saving and restoring every clipboard format around a paste (input.rs).
+clipboard-win = "5"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-autostart = "2"

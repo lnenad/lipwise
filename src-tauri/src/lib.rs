@@ -571,6 +571,13 @@ pub fn run() {
             app.manage(Controller::new(handle.clone()));
             app.manage(updater::Updates::default());
 
+            // Created here, not by Tauri before setup runs ("create": false in
+            // tauri.conf.json): a page that loads first calls commands before AppState
+            // is managed, they fail, and the window stays blank.
+            for config in &app.config().app.windows {
+                tauri::WebviewWindowBuilder::from_config(&handle, config)?.build()?;
+            }
+
             if let Err(e) = pipeline::register_shortcuts(&handle, &shortcut_bindings(&settings)) {
                 log::error!("{e}");
                 *app.state::<AppState>().shortcut_error.lock().unwrap() = Some(e.to_string());
@@ -650,9 +657,14 @@ pub fn run() {
         ])
         .build(tauri::generate_context!())
         .expect("error while building Lipwise")
-        .run(|_, event| {
+        .run(|app, event| {
             if let tauri::RunEvent::Exit = event {
                 local_ai::stop();
+                // Free the speech model before static destructors run: on macOS ggml's
+                // Metal device aborts at exit if any of its buffers are still allocated.
+                if let Some(state) = app.try_state::<AppState>() {
+                    state.transcriber.unload();
+                }
             }
         });
 }

@@ -96,5 +96,7 @@ pub fn install(app: &AppHandle) -> Result<()> {
         *updates.ready.lock().unwrap() = Some(downloaded);
         return Err(e.into());
     }
+    // Restarting from the main thread skips RunEvent::Exit; see the note there.
+    app.state::<AppState>().transcriber.unload();
     app.restart()
 }

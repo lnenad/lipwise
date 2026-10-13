@@ -134,23 +134,28 @@ pub fn register_shortcuts(app: &AppHandle, wanted: &[(Mode, &str)]) -> anyhow::R
         parsed.push((*mode, shortcut));
     }
 
+    // Registering waits on the main thread, which takes `shortcuts` to handle shortcut
+    // events, so that lock is only held briefly; this one keeps two saves from
+    // interleaving.
+    static REGISTERING: Mutex<()> = Mutex::new(());
+    let _registering = REGISTERING.lock().unwrap();
     let controller = app.state::<Controller>();
-    let mut current = controller.shortcuts.lock().unwrap();
+    let current = controller.shortcuts.lock().unwrap().bindings.clone();
     let gs = app.global_shortcut();
-    for (_, s) in &current.bindings {
+    for (_, s) in &current {
         let _ = gs.unregister(*s);
     }
     let result = parsed.iter().try_for_each(|(_, s)| gs.register(*s));
     match result {
         Ok(()) => {
-            current.bindings = parsed;
+            controller.shortcuts.lock().unwrap().bindings = parsed;
             Ok(())
         }
         Err(e) => {
             for (_, s) in &parsed {
                 let _ = gs.unregister(*s);
             }
-            for (_, s) in &current.bindings {
+            for (_, s) in &current {
                 let _ = gs.register(*s);
             }
             anyhow::bail!("Couldn't register shortcut (another app may be using it): {e}")
@@ -301,8 +306,10 @@ fn missing_access(app: &AppHandle) -> Option<&'static str> {
 
 fn stop_recording(app: &AppHandle, metering: &AtomicBool) -> Vec<f32> {
     metering.store(false, Ordering::Relaxed);
-    let controller = app.state::<Controller>();
-    if let Some(esc) = controller.shortcuts.lock().unwrap().escape.take() {
+    // Release the lock before unregistering: that waits on the main thread, which
+    // needs the lock to handle any shortcut event that arrives first.
+    let escape = app.state::<Controller>().shortcuts.lock().unwrap().escape.take();
+    if let Some(esc) = escape {
         let _ = app.global_shortcut().unregister(esc);
     }
     app.state::<AppState>().recorder.stop()

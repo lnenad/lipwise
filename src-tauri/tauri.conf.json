@@ -14,6 +14,7 @@
     "windows": [
       {
         "label": "main",
+        "create": false,
         "title": "Lipwise",
         "url": "index.html",
         "width": 980,
@@ -27,6 +28,7 @@
       },
       {
         "label": "overlay",
+        "create": false,
         "title": "Lipwise Overlay",
         "url": "overlay.html",
         "width": 340,

@@ -1,0 +1,8 @@
+[env]
+# Build the speech engine (ggml, inside transcribe-cpp) for a fixed CPU level rather
+# than the build machine's own (GGML_NATIVE, its default). A CI runner with AVX-512
+# produced a release that crashed with an illegal instruction on CPUs without it.
+# x86: AVX2 with FMA, F16C and BMI2 (Intel Haswell, AMD Zen and newer). Apple
+# Silicon: the compiler's default target, M1. An environment variable of the same
+# name still overrides this.
+TRANSCRIBE_CMAKE_ARGS = "-DGGML_NATIVE=OFF -DGGML_AVX=ON -DGGML_AVX2=ON -DGGML_FMA=ON -DGGML_F16C=ON -DGGML_BMI2=ON"

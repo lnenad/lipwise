@@ -55,6 +55,14 @@ impl Shortcut {
         Key::Other(keycode.into())
     }
 
+    #[cfg(target_os = "linux")]
+    fn letter(self) -> char {
+        match self {
+            Shortcut::Copy => 'c',
+            Shortcut::Paste => 'v',
+        }
+    }
+
     #[cfg(not(any(windows, target_os = "macos")))]
     fn key(self) -> Key {
         match self {
@@ -185,6 +193,10 @@ fn release_modifiers(enigo: &mut Enigo) {
 
 /// Releases any held modifiers, waits `settle`, then sends the shortcut.
 fn shortcut(app: &AppHandle, shortcut: Shortcut, settle: Duration) -> Result<()> {
+    #[cfg(target_os = "linux")]
+    if let Some(result) = wayland::ctrl(shortcut.letter(), settle) {
+        return result;
+    }
     let press = move || -> Result<()> {
         let mut enigo = enigo()?;
         release_modifiers(&mut enigo);
@@ -259,6 +271,112 @@ mod saved {
         for (format, data) in &saved.0 {
             let _ = raw::set_without_clear(*format, data);
         }
+    }
+}
+
+/// Keystrokes through the RemoteDesktop portal in Wayland sessions, where the X11 ones
+/// enigo sends only reach apps running under XWayland. The clipboard needs nothing
+/// special: the desktop bridges the X11 clipboard arboard uses to Wayland apps.
+#[cfg(target_os = "linux")]
+pub mod wayland {
+    use std::path::PathBuf;
+    use std::sync::atomic::{AtomicU8, Ordering};
+    use std::time::Duration;
+
+    use anyhow::Result;
+    use tauri::{AppHandle, Emitter, Manager};
+    use tokio::sync::Mutex;
+
+    use crate::permissions::Access;
+    use crate::portal::{self, keyboard::{self, Keyboard}};
+    use crate::AppState;
+
+    const STARTING: u8 = 0;
+    const READY: u8 = 1;
+    const NOT_ALLOWED: u8 = 2;
+    const UNAVAILABLE: u8 = 3;
+    static STATE: AtomicU8 = AtomicU8::new(STARTING);
+    static KEYBOARD: Mutex<Option<Keyboard>> = Mutex::const_new(None);
+
+    /// The restore token that skips the desktop's dialog. Empty once the user has
+    /// declined, so Lipwise doesn't ask again at every start.
+    fn token_path(app: &AppHandle) -> PathBuf {
+        app.state::<AppState>().data_dir.join("remote-desktop-token")
+    }
+
+    pub fn access() -> Access {
+        match STATE.load(Ordering::Relaxed) {
+            READY => Access::Granted,
+            NOT_ALLOWED => Access::Ask,
+            _ => Access::Limited,
+        }
+    }
+
+    fn set(app: &AppHandle, state: u8) {
+        STATE.store(state, Ordering::Relaxed);
+        let _ = app.emit("permissions-changed", ());
+    }
+
+    /// Opens the keyboard session in the background, asking the user if there's no
+    /// saved permission. At launch (`ask` false), not if they declined before.
+    pub fn start(app: &AppHandle, ask: bool) {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            let _dialog = portal::DIALOGS.lock().await;
+            let mut current = KEYBOARD.lock().await;
+            if current.as_ref().is_some_and(Keyboard::is_open) {
+                return;
+            }
+            portal::register(&app.config().identifier).await;
+            if !keyboard::available().await {
+                log::info!("no RemoteDesktop portal with a keyboard; typing reaches XWayland apps only");
+                return set(&app, UNAVAILABLE);
+            }
+            let path = token_path(&app);
+            let saved = std::fs::read_to_string(&path).ok();
+            if !ask && saved.as_deref() == Some("") {
+                return set(&app, NOT_ALLOWED);
+            }
+            let closed = app.clone();
+            let on_closed = move || {
+                log::info!("the desktop ended keyboard control");
+                set(&closed, NOT_ALLOWED);
+            };
+            match Keyboard::start(saved.as_deref(), on_closed).await {
+                Ok((keyboard, token)) => {
+                    log::info!("typing through the RemoteDesktop portal");
+                    *current = Some(keyboard);
+                    let _ = match token {
+                        Some(token) => std::fs::write(&path, token),
+                        // Nothing to restore from: ask again next launch.
+                        None => std::fs::remove_file(&path),
+                    };
+                    set(&app, READY);
+                }
+                Err(e) => {
+                    log::warn!("keyboard control through the portal not allowed: {e}");
+                    let _ = std::fs::write(&path, "");
+                    set(&app, NOT_ALLOWED);
+                }
+            }
+        });
+    }
+
+    /// Waits `settle`, then sends Ctrl+`letter` through the portal. None if its session
+    /// isn't open, for the caller to fall back to X11 keystrokes. The portal's keyboard
+    /// is a device of its own, so keys the user still holds can't be released for
+    /// them; `settle` gives them time to let go. Call off the async runtime.
+    pub fn ctrl(letter: char, settle: Duration) -> Option<Result<()>> {
+        if STATE.load(Ordering::Relaxed) != READY {
+            return None;
+        }
+        tauri::async_runtime::block_on(async {
+            // Only busy while starting, when it isn't READY anyway.
+            let current = KEYBOARD.try_lock().ok()?;
+            let session = current.as_ref().filter(|k| k.is_open())?;
+            tokio::time::sleep(settle).await;
+            Some(session.chord(keyboard::CONTROL, keyboard::letter(letter)).await)
+        })
     }
 }
 

@@ -51,9 +51,16 @@ function typingRow(access: Access) {
         detail: null,
         action: "Allow",
       };
+    case "ask":
+      // Linux on Wayland: keyboard control through the desktop, not allowed yet.
+      return {
+        hint: "Lipwise needs your desktop's permission to type into other apps. Until then it can type only into apps that run through XWayland; anything else is kept in History.",
+        detail: null,
+        action: "Allow",
+      };
     case "limited":
       return {
-        hint: "On Wayland, Lipwise can type only into apps that run through XWayland. Anything else is kept in History.",
+        hint: "Your desktop doesn't let apps type into other apps, so Lipwise can type only into apps that run through XWayland. Anything else is kept in History.",
         detail: "Some apps",
         action: null,
       };

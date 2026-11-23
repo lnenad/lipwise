@@ -91,7 +91,8 @@ export interface AppStatus {
 }
 
 /**
- * What the OS lets Lipwise do. "ask": the system prompt hasn't been shown yet.
+ * What the OS lets Lipwise do. "ask": the system prompt hasn't been shown yet (or, for
+ * typing on Wayland, the desktop's permission wasn't given).
  * "denied": only the user can turn it on, in system settings. "limited": typing works
  * in some apps only (Linux on Wayland). "missing": no microphone connected.
  */

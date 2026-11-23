@@ -33,6 +33,16 @@ impl Mode {
             Mode::Plain => "Plain dictation",
         }
     }
+
+    /// Stable id, under which the desktop keeps the user's choice of shortcut.
+    #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+    fn id(self) -> &'static str {
+        match self {
+            Mode::Dictate => "dictate",
+            Mode::Command => "command",
+            Mode::Plain => "plain",
+        }
+    }
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -134,6 +144,16 @@ pub fn register_shortcuts(app: &AppHandle, wanted: &[(Mode, &str)]) -> anyhow::R
         parsed.push((*mode, shortcut));
     }
 
+    #[cfg(target_os = "linux")]
+    if crate::portal::wayland_session() && !wayland::unavailable() {
+        wayland::bind(app, wanted, parsed);
+        return Ok(());
+    }
+    register_grabs(app, parsed)
+}
+
+/// Registers the shortcuts as key grabs through the global-shortcut plugin.
+fn register_grabs(app: &AppHandle, parsed: Vec<(Mode, Shortcut)>) -> anyhow::Result<()> {
     // Registering waits on the main thread, which takes `shortcuts` to handle shortcut
     // events, so that lock is only held briefly; this one keeps two saves from
     // interleaving.
@@ -161,6 +181,135 @@ pub fn register_shortcuts(app: &AppHandle, wanted: &[(Mode, &str)]) -> anyhow::R
             anyhow::bail!("Couldn't register shortcut (another app may be using it): {e}")
         }
     }
+}
+
+/// Shortcuts through the desktop's GlobalShortcuts portal, in Wayland sessions.
+#[cfg(target_os = "linux")]
+mod wayland {
+    use std::sync::atomic::AtomicU8;
+
+    use tokio::sync::OnceCell;
+
+    use super::*;
+    use crate::portal::shortcuts::{same_keys, Bound, Portal, Wanted};
+
+    const UNKNOWN: u8 = 0;
+    const IN_USE: u8 = 1;
+    const UNAVAILABLE: u8 = 2;
+    static STATE: AtomicU8 = AtomicU8::new(UNKNOWN);
+    static PORTAL: OnceCell<Option<Portal>> = OnceCell::const_new();
+
+    /// The desktop has no GlobalShortcuts portal; key grabs are all there is.
+    pub fn unavailable() -> bool {
+        STATE.load(Ordering::Relaxed) == UNAVAILABLE
+    }
+
+    pub fn in_use() -> bool {
+        STATE.load(Ordering::Relaxed) == IN_USE
+    }
+
+    /// Binds the shortcuts in the background: the first time, the desktop asks the
+    /// user to confirm them. Falls back to key grabs if the desktop has no portal.
+    /// Problems end up in `shortcut_error`.
+    pub fn bind(app: &AppHandle, wanted: &[(Mode, &str)], parsed: Vec<(Mode, Shortcut)>) {
+        let app = app.clone();
+        let wanted: Vec<Wanted> = wanted
+            .iter()
+            .map(|(mode, text)| Wanted {
+                id: mode.id(),
+                description: mode.label(),
+                shortcut: text.to_string(),
+            })
+            .collect();
+        tauri::async_runtime::spawn(async move {
+            // Also keeps binds in the order the settings were saved.
+            let _dialog = crate::portal::DIALOGS.lock().await;
+            let problem = match connect(&app).await {
+                Some(portal) => match portal.bind(&wanted).await {
+                    Ok(bound) => {
+                        STATE.store(IN_USE, Ordering::Relaxed);
+                        log::info!("shortcuts bound through the portal: {bound:?}");
+                        differences(&wanted, &bound)
+                    }
+                    Err(e) => Some(format!("The desktop didn't set up Lipwise's shortcuts: {e}")),
+                },
+                None => {
+                    let grabs = app.clone();
+                    match tauri::async_runtime::spawn_blocking(move || register_grabs(&grabs, parsed)).await {
+                        Ok(Ok(())) => Some(
+                            "This desktop doesn't let apps have global shortcuts, so Lipwise's \
+                             shortcuts only work while an X11 app is focused."
+                                .into(),
+                        ),
+                        Ok(Err(e)) => Some(e.to_string()),
+                        Err(e) => Some(e.to_string()),
+                    }
+                }
+            };
+            if let Some(problem) = &problem {
+                log::warn!("{problem}");
+            }
+            *app.state::<AppState>().shortcut_error.lock().unwrap() = problem;
+        });
+    }
+
+    async fn connect(app: &AppHandle) -> Option<&'static Portal> {
+        PORTAL
+            .get_or_init(|| async {
+                let events = app.clone();
+                let on_event = move |id: &str, pressed: bool| {
+                    let Some(mode) = [Mode::Dictate, Mode::Command, Mode::Plain].into_iter().find(|m| m.id() == id)
+                    else {
+                        return;
+                    };
+                    events.state::<Controller>().send(if pressed {
+                        Event::Pressed(mode)
+                    } else {
+                        Event::Released(mode)
+                    });
+                };
+                match Portal::connect(&app.config().identifier, on_event).await {
+                    Ok(portal) => Some(portal),
+                    Err(e) => {
+                        log::warn!("no GlobalShortcuts portal, falling back to X11 key grabs: {e}");
+                        STATE.store(UNAVAILABLE, Ordering::Relaxed);
+                        None
+                    }
+                }
+            })
+            .await
+            .as_ref()
+    }
+
+    /// The desktop keeps the user's choice of keys, which can differ from Lipwise's
+    /// settings; says where so the user isn't pressing the wrong keys.
+    fn differences(wanted: &[Wanted], bound: &[Bound]) -> Option<String> {
+        let notes: Vec<String> = wanted
+            .iter()
+            .filter_map(|w| match bound.iter().find(|b| b.id == w.id) {
+                None => Some(format!("{} has none", w.description)),
+                Some(b) if !b.trigger.is_empty() && !same_keys(&w.shortcut, &b.trigger) => {
+                    Some(format!("{} is {}", w.description, b.trigger))
+                }
+                _ => None,
+            })
+            .collect();
+        (!notes.is_empty()).then(|| {
+            format!(
+                "Your desktop decides Lipwise's shortcuts: {}. Change them in the system keyboard settings.",
+                notes.join(", ")
+            )
+        })
+    }
+}
+
+/// Whether Escape can be grabbed to cancel a recording. Not through the portal: binding
+/// a shortcut there asks the user, and Escape would then be taken for good.
+fn grab_escape() -> bool {
+    #[cfg(target_os = "linux")]
+    return !wayland::in_use();
+    #[cfg(not(target_os = "linux"))]
+    true
 }
 
 pub fn emit_status(app: &AppHandle, phase: &'static str, mode: Mode, message: impl Into<String>) {
@@ -252,7 +401,7 @@ fn start(app: &AppHandle, mode: Mode, metering: &Arc<AtomicBool>) -> bool {
 
     // Escape cancels, but only while recording so we don't swallow it otherwise.
     if let Ok(esc) = "Escape".parse::<Shortcut>() {
-        if app.global_shortcut().register(esc).is_ok() {
+        if grab_escape() && app.global_shortcut().register(esc).is_ok() {
             app.state::<Controller>().shortcuts.lock().unwrap().escape = Some(esc);
         }
     }

@@ -8,6 +8,8 @@ mod models;
 mod overlay;
 mod permissions;
 mod pipeline;
+#[cfg(target_os = "linux")]
+mod portal;
 mod settings;
 mod transcribe;
 mod updater;
@@ -581,6 +583,12 @@ pub fn run() {
             if let Err(e) = pipeline::register_shortcuts(&handle, &shortcut_bindings(&settings)) {
                 log::error!("{e}");
                 *app.state::<AppState>().shortcut_error.lock().unwrap() = Some(e.to_string());
+            }
+            // Asked here rather than at the first paste: the desktop's dialog would take
+            // focus from the app the text is meant for.
+            #[cfg(target_os = "linux")]
+            if portal::wayland_session() {
+                input::wayland::start(&handle, false);
             }
             let ai_toggle = build_tray(&handle, settings.ai_enabled)?;
             *app.state::<AppState>().tray_ai_toggle.lock().unwrap() = Some(ai_toggle);

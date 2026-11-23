@@ -117,7 +117,7 @@ Get the latest version from the **[Releases page](https://github.com/lnenad/lipw
 | --- | --- | --- |
 | **Windows** | `…_x64-setup.exe` | Installs for your user, no admin needed. If SmartScreen warns about a new app, choose *More info → Run anyway*. |
 | **macOS**<br><sub>Apple Silicon</sub> | `…_aarch64.dmg` | Signed and notarized. On first use, allow **Microphone** and **Accessibility** (needed to type into other apps). |
-| **Linux** | `.AppImage`, `.deb` or `.rpm` | Works best on X11. On Wayland, global shortcuts and typing depend on your compositor. |
+| **Linux** | `.AppImage`, `.deb` or `.rpm` | Works best on X11. On Wayland, shortcuts go through the desktop's global shortcuts portal (GNOME 48+, KDE Plasma, Hyprland), and typing goes through its remote desktop portal. Each asks you to confirm once. |
 
 Then:
 

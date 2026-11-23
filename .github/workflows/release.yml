@@ -76,6 +76,6 @@ jobs:
           releaseBody: |
             **Windows:** `Lipwise_*_x64-setup.exe`
             **macOS (Apple Silicon):** `Lipwise_*_aarch64.dmg`
-            **Linux:** `.AppImage`, `.deb` or `.rpm`. Shortcuts and typing need X11; on Wayland they depend on the compositor.
+            **Linux:** `.AppImage`, `.deb` or `.rpm`. On Wayland, shortcuts and typing go through the desktop's portals (GNOME 48+, KDE Plasma), which ask you to confirm once.
           releaseDraft: true
           args: ${{ matrix.args }}

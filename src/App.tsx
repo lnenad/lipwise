@@ -61,7 +61,7 @@ export function readiness(settings: Settings, status: AppStatus | null): Readine
   const access = status?.permissions;
   if (access?.microphone === "missing") return { tone: "warn", text: "No microphone found" };
   if (access && access.microphone !== "granted") return { tone: "warn", text: "Allow microphone" };
-  if (access?.typing === "denied") return { tone: "warn", text: "Allow typing" };
+  if (access?.typing === "denied" || access?.typing === "ask") return { tone: "warn", text: "Allow typing" };
   if (phase === "recording") return { tone: "rec", text: "Listening…" };
   if (phase === "transcribing") return { tone: "busy", text: "Transcribing…" };
   if (phase === "thinking") return { tone: "busy", text: "Editing…" };

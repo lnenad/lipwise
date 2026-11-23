@@ -3,8 +3,9 @@
 //! - macOS asks once for the microphone (TCC) and needs Accessibility for keystrokes.
 //! - Windows has a per-user "let desktop apps use the microphone" switch and no
 //!   keystroke permission.
-//! - Linux has neither, but synthetic keystrokes only reach X11 apps, so on Wayland
-//!   typing works only in apps running under XWayland.
+//! - Linux has neither, but synthetic X11 keystrokes only reach X11 apps. On Wayland,
+//!   Lipwise types through the RemoteDesktop portal, which asks the user once; without
+//!   it, typing works only in apps running under XWayland.
 
 use serde::Serialize;
 use tauri::AppHandle;
@@ -58,9 +59,10 @@ pub fn request_microphone(app: &AppHandle) {
     open_settings(app, MICROPHONE_SETTINGS);
 }
 
-/// Asks for the Accessibility access synthetic keystrokes need (macOS only). The first
-/// time this shows the system prompt, which also adds Lipwise to the list in System
-/// Settings; after that it opens that list directly.
+/// Asks for what synthetic keystrokes need. On macOS that's Accessibility access: the
+/// first time this shows the system prompt, which also adds Lipwise to the list in
+/// System Settings; after that it opens that list directly. On Wayland it's keyboard
+/// control through the RemoteDesktop portal, whose dialog this shows.
 pub fn request_typing(app: &AppHandle) {
     #[cfg(target_os = "macos")]
     {
@@ -72,7 +74,11 @@ pub fn request_typing(app: &AppHandle) {
             open_settings(app, ACCESSIBILITY_SETTINGS);
         }
     }
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(target_os = "linux")]
+    if crate::portal::wayland_session() {
+        crate::input::wayland::start(app, true);
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     let _ = app;
 }
 
@@ -264,10 +270,8 @@ pub fn microphone() -> Access {
 
 #[cfg(not(any(target_os = "macos", windows)))]
 pub fn typing() -> Access {
-    let wayland = std::env::var_os("WAYLAND_DISPLAY").is_some()
-        || std::env::var("XDG_SESSION_TYPE").is_ok_and(|t| t.eq_ignore_ascii_case("wayland"));
-    if wayland {
-        Access::Limited
+    if crate::portal::wayland_session() {
+        crate::input::wayland::access()
     } else {
         Access::Granted
     }
